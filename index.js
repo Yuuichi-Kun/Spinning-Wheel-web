@@ -1,7 +1,6 @@
 /* --------------- Spin Wheel  --------------------- */
 const spinWheel = document.getElementById("spinWheel");
 const spinBtn = document.getElementById("spin_btn");
-const text = document.getElementById("text");
 
 // sudut dari html ?
 
@@ -54,6 +53,7 @@ let spinChart = new Chart(spinWheel, {
   options: {
     responsive: true,
     animation: { duration: 0 },
+    rotation: 0, // Initialize rotation
     plugins: {
       tooltip: false,
       legend: {
@@ -68,47 +68,69 @@ let spinChart = new Chart(spinWheel, {
     },
   },
 });
-/* --------------- Display Value Based On The Angle --------------------- */
-const generateValue = (angleValue) => {
-  for (let i of spinValues) {
-    if (angleValue >= i.minDegree && angleValue <= i.maxDegree) {
-      text.innerHTML = `<p>Congratulations, You Have Won ${i.value} ! </p>`;
-      spinBtn.disabled = false;
-      break;
-    }
-  }
-};
 /* --------------- Spinning Code --------------------- */
-let count = 0;
-let resultValue = 91;
+let isSpinning = false;
 spinBtn.addEventListener("click", () => {
+  if (isSpinning) return;
+  
   spinBtn.disabled = true;
-  text.innerHTML = `<p>Best Of Luck!</p>`;
+  isSpinning = true;
 
-  // angle dapet dari sini
-  let randomDegree = Math.floor(Math.random() * (355 - 0 + 1) + 0);
-
-  let rotationInterval = window.setInterval(() => {
-    spinChart.options.rotation = spinChart.options.rotation + resultValue;
+  // Select a random prize index
+  const prizeIndex = Math.floor(Math.random() * spinValues.length);
+  const selectedPrize = spinValues[prizeIndex];
+  
+  // Calculate the target degree (middle of the prize range)
+  let prizeCenter = (selectedPrize.minDegree + selectedPrize.maxDegree) / 2;
+  
+  // The pointer is at visual top, which corresponds to chart position 270deg (due to CSS 270deg rotation)
+  // Chart.js rotation R moves segments clockwise: segment at position P moves to (P + R) mod 360
+  // To align prize center with pointer: (prizeCenter + targetRotation) mod 360 = 270
+  // Therefore: targetRotation = (270 - prizeCenter + 360) % 360
+  let targetRotation = (270 - prizeCenter + 360) % 360;
+  
+  // Add multiple full rotations (5-8 full spins) for dramatic effect
+  const minSpins = 5;
+  const maxSpins = 8;
+  const fullSpins = Math.floor(Math.random() * (maxSpins - minSpins + 1)) + minSpins;
+  const totalRotation = (fullSpins * 360) + targetRotation;
+  
+  // Current rotation state
+  let currentRotation = spinChart.options.rotation || 0;
+  const startRotation = currentRotation;
+  const endRotation = startRotation + totalRotation;
+  
+  // Animation parameters
+  let progress = 0;
+  const duration = 3000; // 3 seconds
+  const startTime = Date.now();
+  
+  // Easing function for smooth deceleration
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+  
+  const animate = () => {
+    const elapsed = Date.now() - startTime;
+    progress = Math.min(elapsed / duration, 1);
+    
+    // Apply easing
+    const easedProgress = easeOutCubic(progress);
+    
+    // Calculate current rotation
+    currentRotation = startRotation + (endRotation - startRotation) * easedProgress;
+    
+    // Normalize rotation to 0-360 range
+    spinChart.options.rotation = currentRotation % 360;
     spinChart.update();
-    console.log(spinChart.options.rotation, randomDegree);
-    // if (spinChart.options.rotation >= 360) {
-    //     spinChart.options.rotation = 0;
-    // } 
-    // if (spinChart.options.rotation >= 359) {
-    //     spinChart.options.rotation = 0;
-    //     clearInterval(rotationInterval);
-    // }
-    if (spinChart.options.rotation >= 360) {
-      count += 1;
-      resultValue -= 5;
-      spinChart.options.rotation = 0;
-    } else if (count > 2 && spinChart.options.rotation == randomDegree) {
-      generateValue(randomDegree);
-      clearInterval(rotationInterval);
-      count = 0;
-      resultValue = 91;
+    
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
+      // Animation complete
+      spinBtn.disabled = false;
+      isSpinning = false;
     }
-  }, 10);
+  };
+  
+  animate();
 });
 /* --------------- End Spin Wheel  --------------------- */
